@@ -10,7 +10,9 @@ cp .env.example .env     # phir .env edit karein
 npm start
 ```
 
-Dashboard: http://localhost:3000 (password = `.env` mein `ADMIN_PASSWORD`). Node.js 20+ aur Postgres database (`DATABASE_URL`) zaroori hai. Tables khud ban jati hain.
+Dashboard: http://localhost:3000 (password = `.env` mein `ADMIN_PASSWORD`, warna `admin`). Node.js 20+ chahiye.
+
+Local par database ki zaroorat nahi: `DATABASE_URL` khali ho to app built-in database (`data/pglite`) use karti hai. Vercel/online ke liye `DATABASE_URL` (ya `POSTGRES_URL`) zaroori hai. Tables khud ban jati hain.
 
 ## Vercel par deploy
 

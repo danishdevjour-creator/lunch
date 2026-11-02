@@ -1,16 +1,37 @@
+const path = require('path');
 const crypto = require('crypto');
-const { Pool } = require('pg');
 
-if (!process.env.DATABASE_URL) {
-  console.error('DATABASE_URL is not set. Create a Postgres database (e.g. Neon) and add its connection string.');
+// Vercel's Neon integration exposes POSTGRES_URL; most hosts use DATABASE_URL.
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+
+// With a DATABASE_URL we use real Postgres. Without one (local `npm start`) we fall back to
+// PGlite, an embedded Postgres saved in ./data, so the app works with no setup.
+// Serverless hosts have a read-only disk, so there the URL is required.
+let pool;
+let embedded = null;
+
+if (DATABASE_URL) {
+  const { Pool } = require('pg');
+  const isLocal = /localhost|127\.0\.0\.1/.test(DATABASE_URL);
+  pool = new Pool({ connectionString: DATABASE_URL, ssl: isLocal ? false : { rejectUnauthorized: false }, max: 3 });
+} else if (process.env.VERCEL) {
+  const missing = () => {
+    throw new Error('Database not configured: add DATABASE_URL in Vercel > Settings > Environment Variables, then redeploy.');
+  };
+  pool = { query: missing, connect: missing };
+} else {
+  const dir = path.join(__dirname, 'data', 'pglite');
+  console.log(`No DATABASE_URL set, using the built-in database in ${dir}`);
+  const pglite = import('@electric-sql/pglite').then(({ PGlite }) => new PGlite(dir));
+  embedded = pglite;
+  // Minimal pg-compatible wrapper around PGlite
+  pool = {
+    query: async (sql, params = []) => (await pglite).query(sql, params),
+    connect: async () => {
+      throw new Error('Use transaction() with the embedded database');
+    },
+  };
 }
-
-const isLocal = /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL || '');
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: isLocal ? false : { rejectUnauthorized: false },
-  max: 3,
-});
 
 // Timestamps are stored as Pakistan-time text so the UI can slice them directly.
 const NOW = `to_char(now() AT TIME ZONE 'Asia/Karachi', 'YYYY-MM-DD HH24:MI:SS')`;
@@ -89,7 +110,8 @@ let ready = null;
 function init() {
   if (!ready) {
     ready = (async () => {
-      await pool.query(SCHEMA);
+      if (embedded) await (await embedded).exec(SCHEMA); // PGlite runs multi-statement SQL via exec()
+      else await pool.query(SCHEMA);
       for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
         await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [k, v]);
       }
@@ -113,6 +135,7 @@ async function one(sql, params = [], client = pool) {
 // Runs fn(client) inside BEGIN/COMMIT on a single connection.
 async function transaction(fn) {
   await init();
+  if (embedded) return (await embedded).transaction((tx) => fn({ query: (sql, params) => tx.query(sql, params) }));
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
