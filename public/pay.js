@@ -3,13 +3,14 @@ const params = new URLSearchParams(location.search);
 const token = params.get('m');
 let info = null;
 let method = 'jazzcash';
+let result = null; // { status, message } from a gateway redirect
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function money(n) {
-  return `${info?.currency || 'Rs'} ${Number(n || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`;
+function money(n, sign = '') {
+  return ltr(`${sign}${info?.currency || 'Rs'} ${Number(n || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`);
 }
 
 function toast(msg, isError = false) {
@@ -31,79 +32,108 @@ async function api(path, body) {
   return data;
 }
 
-function showResult() {
+function readResult() {
   const status = params.get('status');
   if (!status) return;
+  result = { status, message: params.get('message') };
+  history.replaceState(null, '', `?m=${encodeURIComponent(token || '')}`);
+}
+
+function renderResult() {
+  if (!result) return;
   const el = $('#result');
-  el.textContent = params.get('message') || (status === 'success' ? 'Payment successful' : 'Payment failed');
-  el.className = `notice ${status === 'success' ? 'ok' : 'err'}`;
-  history.replaceState(null, '', `?m=${token}`);
+  el.textContent = tMsg(result.message) || (result.status === 'success' ? t('pay.success') : t('pay.failed'));
+  el.className = `notice ${result.status === 'success' ? 'ok' : 'err'}`;
 }
 
 function renderMethod() {
-  document.querySelectorAll('.method-tab').forEach((t) => t.classList.toggle('active', t.dataset.method === method));
+  document.querySelectorAll('.method-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.method === method));
   const cfg = info[method];
   $('#online-box').classList.toggle('hidden', !cfg.online);
-  $('#pay-online').textContent = method === 'jazzcash' ? 'Pay with JazzCash' : 'Pay with Meezan Bank';
+  $('#pay-online').textContent = method === 'jazzcash' ? t('pay.payJazz') : t('pay.payMeezan');
 
   let details = '';
   if (method === 'jazzcash') {
-    details = cfg.number
-      ? `Send money to this JazzCash account:<br><b>${esc(cfg.number)}</b>${cfg.title ? `<br>Title: ${esc(cfg.title)}` : ''}`
-      : '';
-    $('#reference-label').textContent = 'JazzCash Transaction ID (TID)';
+    if (cfg.number) {
+      details = `${t('pay.jazzDetails')}<br><b dir="ltr">${esc(cfg.number)}</b>` +
+        (cfg.title ? `<br>${t('pay.titleLabel')}: ${esc(cfg.title)}` : '');
+    }
+    $('#reference-label').textContent = t('pay.tid');
   } else {
-    details = cfg.account_number || cfg.iban
-      ? `Transfer to this Meezan Bank account:<br>
-         ${cfg.account_title ? `Title: <b>${esc(cfg.account_title)}</b><br>` : ''}
-         ${cfg.account_number ? `Account #: <b>${esc(cfg.account_number)}</b><br>` : ''}
-         ${cfg.iban ? `IBAN: <b>${esc(cfg.iban)}</b><br>` : ''}
-         ${cfg.branch ? `Branch: ${esc(cfg.branch)}` : ''}`
-      : '';
-    $('#reference-label').textContent = 'Bank transaction reference / ID';
+    if (cfg.account_number || cfg.iban) {
+      details = `${t('pay.meezanDetails')}<br>` +
+        (cfg.account_title ? `${t('pay.titleLabel')}: <b>${esc(cfg.account_title)}</b><br>` : '') +
+        (cfg.account_number ? `${t('pay.accountNo')}: <b dir="ltr">${esc(cfg.account_number)}</b><br>` : '') +
+        (cfg.iban ? `${t('field.iban')}: <b dir="ltr">${esc(cfg.iban)}</b><br>` : '') +
+        (cfg.branch ? `${t('field.branch')}: ${esc(cfg.branch)}` : '');
+    }
+    $('#reference-label').textContent = t('pay.bankRef');
   }
   $('#account-details').innerHTML = details;
   $('#manual-box').classList.toggle('hidden', !details);
   if (!details && !cfg.online) {
     $('#manual-box').classList.remove('hidden');
-    $('#account-details').innerHTML = 'Account details have not been set up yet. Please contact the admin.';
+    $('#account-details').textContent = t('pay.notSetup');
   }
 }
 
-async function load() {
-  if (!token) throw new Error('This payment link is missing the member code. Ask your admin for your personal link.');
-  info = await api('');
+function render() {
+  renderResult();
+  if (!info) return;
   const m = info.member;
-  $('#company').textContent = `${info.company_name} · Lunch budget`;
+  $('#brand-name').textContent = info.company_name || 'Lunch Budget';
+  $('#company').textContent = t('pay.company', { company: info.company_name });
   $('#member-name').textContent = m.name;
   $('#balance').textContent = money(m.balance);
-  $('#balance').style.color = m.balance <= 0 ? 'var(--danger)' : 'var(--ok)';
+  $('#balance').classList.toggle('neg', m.balance <= 0);
   $('#balance-detail').textContent =
-    `Deposited ${money(m.deposited)} · Spent ${money(m.spent)}` + (m.pending ? ` · ${money(m.pending)} awaiting confirmation` : '');
+    t('pay.summary', { deposited: money(m.deposited), spent: money(m.spent) }) +
+    (m.pending ? t('pay.awaiting', { amount: money(m.pending) }) : '');
   $('#history').innerHTML = info.history.length
-    ? info.history.map((t) => `
+    ? info.history.map((tx) => `
       <tr>
-        <td>${esc(t.created_at.slice(0, 10))}</td>
-        <td>${esc(t.note || t.method)}</td>
-        <td class="num ${t.type === 'expense' ? 'neg' : 'pos'}">${t.type === 'expense' ? '−' : '+'}${money(t.amount)}</td>
-        <td>${t.status !== 'approved' ? `<span class="badge ${t.status}">${t.status}</span>` : ''}</td>
+        <td>${ltr(esc(tx.created_at.slice(0, 10)))}</td>
+        <td>${esc(tMsg(tx.note) || t('method.' + tx.method))}</td>
+        <td class="num ${tx.type === 'expense' ? 'neg' : 'pos'}">${money(tx.amount, tx.type === 'expense' ? '−' : '+')}</td>
+        <td>${tx.status !== 'approved' ? `<span class="badge ${tx.status}">${t('status.' + tx.status)}</span>` : ''}</td>
       </tr>`).join('')
-    : '<tr><td class="empty-row">No history yet</td></tr>';
+    : `<tr><td class="empty-row">${t('pay.noHistory')}</td></tr>`;
   $('#content').classList.remove('hidden');
   renderMethod();
+}
+
+let loadError = null;
+function renderError() {
+  if (!loadError) return;
+  $('#error').textContent = loadError === 'missing' ? t('pay.missingToken') : tMsg(loadError);
+  $('#error').classList.remove('hidden');
+}
+
+async function load() {
+  if (!token) {
+    loadError = 'missing';
+    return renderError();
+  }
+  try {
+    info = await api('');
+    render();
+  } catch (err) {
+    loadError = err.message;
+    renderError();
+  }
 }
 
 function amount() {
   const a = Number($('#amount').value);
   if (!a || a <= 0) {
-    toast('Please enter an amount', true);
+    toast(t('pay.enterAmount'), true);
     $('#amount').focus();
     return null;
   }
   return a;
 }
 
-document.querySelectorAll('.method-tab').forEach((t) => (t.onclick = () => { method = t.dataset.method; renderMethod(); }));
+document.querySelectorAll('.method-tab').forEach((tab) => (tab.onclick = () => { method = tab.dataset.method; renderMethod(); }));
 document.querySelectorAll('[data-amt]').forEach((b) => (b.onclick = () => ($('#amount').value = b.dataset.amt)));
 
 $('#pay-online').onclick = async () => {
@@ -124,7 +154,7 @@ $('#pay-online').onclick = async () => {
       form.submit();
     }
   } catch (err) {
-    toast(err.message, true);
+    toast(tMsg(err.message), true);
     btn.disabled = false;
   }
 };
@@ -136,18 +166,17 @@ $('#submit-manual').onclick = async () => {
   btn.disabled = true;
   try {
     await api('/manual', { method, amount: a, reference: $('#reference').value });
-    toast('Thanks! Your payment is waiting for admin confirmation.');
+    toast(t('pay.thanks'));
     $('#amount').value = '';
     $('#reference').value = '';
     await load();
   } catch (err) {
-    toast(err.message, true);
+    toast(tMsg(err.message), true);
   }
   btn.disabled = false;
 };
 
-showResult();
-load().catch((err) => {
-  $('#error').textContent = err.message;
-  $('#error').classList.remove('hidden');
-});
+setupChrome({ onLangChange: () => { render(); renderError(); } });
+readResult();
+renderResult();
+load();
