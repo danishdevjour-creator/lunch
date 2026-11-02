@@ -1,8 +1,26 @@
 const path = require('path');
 const crypto = require('crypto');
 
-// Vercel's Neon integration exposes POSTGRES_URL; most hosts use DATABASE_URL.
-const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+// Most hosts use DATABASE_URL. Vercel's storage integrations may add POSTGRES_URL or a
+// custom prefix (e.g. STORAGE_DATABASE_URL), so accept any variable holding a postgres:// URL.
+const isPostgresUrl = (v) => /^postgres(ql)?:\/\//i.test(String(v || '').trim());
+
+function findDatabaseUrl() {
+  const env = process.env;
+  const names = Object.keys(env).filter((k) => isPostgresUrl(env[k]));
+  const rank = (k) =>
+    k === 'DATABASE_URL' ? 0
+      : k === 'POSTGRES_URL' ? 1
+        : /DATABASE_URL$/.test(k) && !/UNPOOLED|NON_POOLING/.test(k) ? 2
+          : /POSTGRES_URL$/.test(k) ? 3
+            : /UNPOOLED|NON_POOLING|PRISMA/.test(k) ? 5 : 4;
+  names.sort((a, b) => rank(a) - rank(b));
+  return names.length ? { name: names[0], url: env[names[0]].trim() } : null;
+}
+
+const found = findDatabaseUrl();
+const DATABASE_URL = found ? found.url : '';
+if (found && found.name !== 'DATABASE_URL') console.log(`Using database URL from ${found.name}`);
 
 // With a DATABASE_URL we use real Postgres. Without one (local `npm start`) we fall back to
 // PGlite, an embedded Postgres saved in ./data, so the app works with no setup.
@@ -15,8 +33,12 @@ if (DATABASE_URL) {
   const isLocal = /localhost|127\.0\.0\.1/.test(DATABASE_URL);
   pool = new Pool({ connectionString: DATABASE_URL, ssl: isLocal ? false : { rejectUnauthorized: false }, max: 3 });
 } else if (process.env.VERCEL) {
+  // Names only (never values), to show which database-looking variables this deployment can see.
+  const seen = Object.keys(process.env).filter((k) => /DATABASE|POSTGRES|^PG|NEON/i.test(k));
+  const message = 'Database not configured: add DATABASE_URL in Vercel > Settings > Environment Variables, then redeploy. ' +
+    `(Database variables visible to this deployment: ${seen.length ? seen.join(', ') : 'none'})`;
   const missing = () => {
-    throw new Error('Database not configured: add DATABASE_URL in Vercel > Settings > Environment Variables, then redeploy.');
+    throw new Error(message);
   };
   pool = { query: missing, connect: missing };
 } else {
