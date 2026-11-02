@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const { db, getSettings, getMember } = require('./db');
+const { q, getSettings, getMember } = require('./db');
 
 const configured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
@@ -12,7 +12,8 @@ const transporter = configured
     })
   : null;
 
-const logEmail = db.prepare('INSERT INTO emails (member_id, to_addr, subject, kind, status, error) VALUES (?, ?, ?, ?, ?, ?)');
+const logEmail = (...params) =>
+  q('INSERT INTO emails (member_id, to_addr, subject, kind, status, error) VALUES ($1, $2, $3, $4, $5, $6)', params);
 
 function money(settings, n) {
   return `${settings.currency} ${Number(n).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`;
@@ -71,45 +72,45 @@ const TEMPLATES = {
 };
 
 async function sendMemberEmail(kind, member, tx) {
-  const settings = getSettings();
+  const settings = await getSettings();
   const { subject, html } = TEMPLATES[kind](settings, member, tx);
   if (!transporter) {
     console.log(`[email not configured] would send "${subject}" to ${member.email}`);
-    logEmail.run(member.id, member.email, subject, kind, 'logged', 'SMTP not configured');
+    await logEmail(member.id, member.email, subject, kind, 'logged', 'SMTP not configured');
     return { status: 'logged' };
   }
   try {
     await transporter.sendMail({ from: process.env.MAIL_FROM || process.env.SMTP_USER, to: member.email, subject, html });
-    logEmail.run(member.id, member.email, subject, kind, 'sent', null);
+    await logEmail(member.id, member.email, subject, kind, 'sent', null);
     return { status: 'sent' };
   } catch (err) {
     console.error('Email failed:', err.message);
-    logEmail.run(member.id, member.email, subject, kind, 'failed', err.message);
+    await logEmail(member.id, member.email, subject, kind, 'failed', err.message);
     return { status: 'failed', error: err.message };
   }
 }
 
-const setAlertState = db.prepare('UPDATE members SET alert_state = ? WHERE id = ?');
+const setAlertState = (state, id) => q('UPDATE members SET alert_state = $1 WHERE id = $2', [state, id]);
 
 // Call after anything that changes a member's balance. Sends at most one
 // "low" and one "empty" email until the member tops up above the threshold.
 async function checkBalanceAlert(memberId) {
-  const member = getMember(memberId);
+  const member = await getMember(memberId);
   if (!member || !member.active) return;
-  const threshold = Number(getSettings().low_balance_threshold || 0);
+  const threshold = Number((await getSettings()).low_balance_threshold || 0);
 
   if (member.balance <= 0) {
     if (member.alert_state !== 'empty') {
-      setAlertState.run('empty', member.id);
+      await setAlertState('empty', member.id);
       await sendMemberEmail('empty', member);
     }
   } else if (member.balance <= threshold) {
     if (!member.alert_state) {
-      setAlertState.run('low', member.id);
+      await setAlertState('low', member.id);
       await sendMemberEmail('low', member);
     }
   } else if (member.alert_state) {
-    setAlertState.run(null, member.id);
+    await setAlertState(null, member.id);
   }
 }
 

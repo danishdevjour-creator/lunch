@@ -10,7 +10,17 @@ cp .env.example .env     # phir .env edit karein
 npm start
 ```
 
-Dashboard: http://localhost:3000 (password = `.env` mein `ADMIN_PASSWORD`). Node.js 22.13+ zaroori hai (built-in SQLite use hota hai, data `data/lunch.db` mein save hota hai).
+Dashboard: http://localhost:3000 (password = `.env` mein `ADMIN_PASSWORD`). Node.js 20+ aur Postgres database (`DATABASE_URL`) zaroori hai. Tables khud ban jati hain.
+
+## Vercel par deploy
+
+1. Vercel project > **Storage** > **Create Database** > **Neon (Postgres)** > project se connect karein. Isse `DATABASE_URL` khud add ho jata hai.
+2. Vercel project > **Settings** > **Environment Variables** mein yeh add karein:
+   - `ADMIN_PASSWORD`: dashboard ka password
+   - `SESSION_SECRET`: koi bhi lambi random string
+   - `BASE_URL`: e.g. `https://lunch-xi.vercel.app`
+   - Email ke liye `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`
+3. Code GitHub par push karein (ya Vercel mein **Redeploy**).
 
 ## Features
 
