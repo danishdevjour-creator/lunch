@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add Lunch Money</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="pay-wrap">
+    <div id="error" class="notice err hidden"></div>
+    <div id="result" class="notice hidden"></div>
+
+    <div id="content" class="hidden">
+      <div class="card balance-hero">
+        <div class="muted" id="company"></div>
+        <h2 id="member-name" style="margin-top:6px"></h2>
+        <div class="value" id="balance"></div>
+        <div class="muted" id="balance-detail"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Add money</h3>
+        <div class="method-tabs">
+          <button class="method-tab active" data-method="jazzcash">JazzCash<small>Mobile wallet</small></button>
+          <button class="method-tab" data-method="meezan">Meezan Bank<small>Bank transfer / card</small></button>
+        </div>
+
+        <div class="field">
+          <label for="amount">Amount</label>
+          <input id="amount" type="number" min="1" step="any" placeholder="e.g. 3000">
+          <div class="quick-amounts">
+            <button type="button" class="btn sm secondary" data-amt="1000">1,000</button>
+            <button type="button" class="btn sm secondary" data-amt="2000">2,000</button>
+            <button type="button" class="btn sm secondary" data-amt="3000">3,000</button>
+            <button type="button" class="btn sm secondary" data-amt="5000">5,000</button>
+          </div>
+        </div>
+
+        <div id="online-box">
+          <button class="btn" id="pay-online" style="width:100%">Pay now</button>
+          <div class="divider">or send manually</div>
+        </div>
+
+        <div id="manual-box">
+          <div class="account-box" id="account-details"></div>
+          <div class="field">
+            <label for="reference" id="reference-label">Transaction ID (TID)</label>
+            <input id="reference" placeholder="Enter the ID from your payment receipt">
+          </div>
+          <button class="btn secondary" id="submit-manual" style="width:100%">I have sent the payment</button>
+          <p class="muted" style="font-size:12px">Your balance updates after the admin confirms the payment.</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Recent history</h3>
+        <div class="table-wrap"><table><tbody id="history"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+  <form id="gateway-form" method="POST" class="hidden"></form>
+  <div id="toast"></div>
+  <script src="pay.js"></script>
+</body>
+</html>

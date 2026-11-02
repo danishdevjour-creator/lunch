@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lunch Budget</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Login -->
+  <div id="login" class="login-wrap hidden">
+    <form class="card login-card" id="login-form">
+      <h2 style="margin-bottom:4px">Lunch Budget</h2>
+      <p class="muted" style="margin-top:0">Admin login</p>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn" style="width:100%">Login</button>
+    </form>
+  </div>
+
+  <!-- App -->
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand"><span id="brand-name">Lunch Budget</span><small>Lunch budget dashboard</small></div>
+      <button class="nav-btn active" data-page="overview">Overview</button>
+      <button class="nav-btn" data-page="members">Members</button>
+      <button class="nav-btn" data-page="lunch">Record lunch</button>
+      <button class="nav-btn" data-page="payments">Payments <span class="pill hidden" id="pending-pill"></span></button>
+      <button class="nav-btn" data-page="emails">Email log</button>
+      <button class="nav-btn" data-page="settings">Settings</button>
+      <div class="spacer"></div>
+      <button class="nav-btn" id="logout">Logout</button>
+    </aside>
+
+    <main>
+      <!-- Overview -->
+      <section data-section="overview">
+        <div class="page-head"><h1>Overview</h1></div>
+        <div id="config-notice"></div>
+        <div class="grid stats">
+          <div class="card stat"><div class="label">Total collected</div><div class="value" id="s-collected">–</div></div>
+          <div class="card stat"><div class="label">Total spent</div><div class="value" id="s-spent">–</div></div>
+          <div class="card stat"><div class="label">Remaining balance</div><div class="value" id="s-balance">–</div></div>
+          <div class="card stat"><div class="label">Members</div><div class="value" id="s-members">–</div></div>
+          <div class="card stat"><div class="label">Pending payments</div><div class="value" id="s-pending">–</div></div>
+        </div>
+        <div class="grid two-col">
+          <div class="card">
+            <h3>Balance finished / low</h3>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Member</th><th class="num">Balance</th><th></th></tr></thead>
+              <tbody id="alerts-body"></tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="toolbar" style="justify-content:space-between;margin-bottom:12px">
+              <h3 style="margin:0">Last 6 months</h3>
+              <div class="legend"><span class="in">Collected</span><span class="out">Spent</span></div>
+            </div>
+            <div class="bars" id="chart"></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <h3>Recent activity</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Member</th><th>Type</th><th>Method</th><th class="num">Amount</th><th>Status</th></tr></thead>
+            <tbody id="recent-body"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- Members -->
+      <section data-section="members" class="hidden">
+        <div class="page-head">
+          <h1>Members</h1>
+          <div class="toolbar">
+            <input id="member-search" placeholder="Search name / email">
+            <label class="check-item" style="padding:7px 10px"><input type="checkbox" id="show-inactive"> Inactive</label>
+            <button class="btn" id="add-member-btn">+ Add member</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr>
+              <th>Name</th><th>Email</th><th>Phone</th>
+              <th class="num">Deposited</th><th class="num">Spent</th><th class="num">Remaining</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody id="members-body"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- Record lunch -->
+      <section data-section="lunch" class="hidden">
+        <div class="page-head"><h1>Record lunch</h1></div>
+        <div class="grid two-col">
+          <form class="card" id="lunch-form">
+            <h3>Lunch details</h3>
+            <div class="form-grid">
+              <div class="field"><label>Date</label><input type="date" name="date" required></div>
+              <div class="field"><label>Description</label><input name="description" placeholder="e.g. Biryani"></div>
+              <div class="field">
+                <label>Charge as</label>
+                <select name="mode">
+                  <option value="per_person">Fixed amount per person</option>
+                  <option value="total">Split total bill equally</option>
+                </select>
+              </div>
+              <div class="field"><label id="amount-label">Amount per person</label><input type="number" name="amount" min="1" step="any" required></div>
+            </div>
+            <div class="toolbar" style="justify-content:space-between;margin:6px 0 10px">
+              <label style="margin:0">Who had lunch? <span id="selected-count" class="muted"></span></label>
+              <div class="actions">
+                <button type="button" class="btn sm secondary" id="select-all">Select all</button>
+                <button type="button" class="btn sm secondary" id="select-none">Clear</button>
+              </div>
+            </div>
+            <div class="checklist" id="lunch-members"></div>
+            <p class="muted" id="lunch-preview"></p>
+            <button class="btn">Save lunch & deduct</button>
+          </form>
+          <div class="card">
+            <h3>Previous lunches</h3>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Date</th><th>Description</th><th class="num">People</th><th class="num">Each</th><th class="num">Total</th><th></th></tr></thead>
+              <tbody id="lunches-body"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Payments -->
+      <section data-section="payments" class="hidden">
+        <div class="page-head">
+          <h1>Payments</h1>
+          <div class="toolbar">
+            <select id="tx-filter">
+              <option value="pending">Pending approval</option>
+              <option value="">All transactions</option>
+              <option value="deposit">Deposits</option>
+              <option value="expense">Expenses</option>
+            </select>
+            <button class="btn" id="add-tx-btn">+ Record payment</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Member</th><th>Type</th><th>Method</th><th>Reference / TID</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
+            <tbody id="tx-body"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- Emails -->
+      <section data-section="emails" class="hidden">
+        <div class="page-head"><h1>Email log</h1></div>
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Member</th><th>To</th><th>Subject</th><th>Status</th></tr></thead>
+            <tbody id="emails-body"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section data-section="settings" class="hidden">
+        <div class="page-head"><h1>Settings</h1></div>
+        <form id="settings-form" class="grid two-col">
+          <div class="card">
+            <h3>General</h3>
+            <div class="field"><label>Company name</label><input name="company_name"></div>
+            <div class="form-grid">
+              <div class="field"><label>Currency symbol</label><input name="currency"></div>
+              <div class="field"><label>Default lunch cost</label><input name="default_lunch_cost" type="number" step="any"></div>
+            </div>
+            <div class="field">
+              <label>Low balance alert at</label>
+              <input name="low_balance_threshold" type="number" step="any">
+              <p class="muted" style="margin:4px 0 0">An email goes out once when balance drops to this amount, and again when it reaches 0.</p>
+            </div>
+          </div>
+          <div class="card">
+            <h3>JazzCash (manual transfer)</h3>
+            <div class="form-grid">
+              <div class="field"><label>JazzCash number</label><input name="jazzcash_number" placeholder="03XX-XXXXXXX"></div>
+              <div class="field"><label>Account title</label><input name="jazzcash_title"></div>
+            </div>
+            <h3 style="margin-top:8px">Meezan Bank (manual transfer)</h3>
+            <div class="form-grid">
+              <div class="field"><label>Account title</label><input name="meezan_account_title"></div>
+              <div class="field"><label>Account number</label><input name="meezan_account_number"></div>
+              <div class="field"><label>IBAN</label><input name="meezan_iban" placeholder="PK..MEZN...."></div>
+              <div class="field"><label>Branch</label><input name="meezan_branch"></div>
+            </div>
+            <p class="muted" id="gateway-status"></p>
+          </div>
+          <div><button class="btn">Save settings</button></div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

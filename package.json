@@ -1,0 +1,17 @@
+{
+  "name": "lunch-budget",
+  "version": "1.0.0",
+  "description": "Company lunch budget dashboard: member deposits, balances, email alerts, JazzCash & Meezan payments",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": { "node": ">=22.13" },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "nodemailer": "^6.9.16"
+  }
+}
